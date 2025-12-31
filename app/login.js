@@ -3,11 +3,11 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, 
   ActivityIndicator, KeyboardAvoidingView, Platform, SafeAreaView 
 } from 'react-native';
-import { router } from 'expo-router'; 
-import { AuthContext } from '../src/context/AuthContext'; // Check this path matches your folder structure
+import { router } from 'expo-router'; // <--- NEW IMPORT
+import { AuthContext } from '../src/context/AuthContext';
 
-export default function Login() {
-  const { login } = useContext(AuthContext); // Get login function from Context
+export default function LoginScreen() {
+  const { login } = useContext(AuthContext);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,11 +16,10 @@ export default function Login() {
     setLoading(true);
     try {
       await login(username, password);
-      // Success! Navigate to the main Dashboard/Home
-      // 'replace' prevents the user from going back to the login screen
+      // Success! Replace the current screen so user can't go back to login
       router.replace('/home'); 
     } catch (e) {
-      alert('Login Failed. Please check your username and password.');
+      alert('Login Failed. Please check credentials.');
     } finally {
       setLoading(false);
     }
@@ -72,7 +71,7 @@ export default function Login() {
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Don't have an account? </Text>
-            {/* Navigate to Register Page */}
+            {/* THIS IS THE FIX: Link to the register file */}
             <TouchableOpacity onPress={() => router.push('/register')}>
               <Text style={styles.linkText}>Sign Up</Text>
             </TouchableOpacity>
@@ -98,14 +97,16 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: '600', color: '#343A40', marginBottom: 8 },
   input: {
     height: 50, backgroundColor: '#F1F3F5', borderRadius: 12,
-    paddingHorizontal: 15, fontSize: 16, color: '#333',
+    paddingHorizontal: 15, fontSize: 16, color: '#333', borderWidth: 1, borderColor: 'transparent',
   },
   button: {
-    backgroundColor: '#0d6efd', height: 50, borderRadius: 12,
+    backgroundColor: '#007BFF', height: 50, borderRadius: 12,
     justifyContent: 'center', alignItems: 'center', marginTop: 10,
+    shadowColor: "#007BFF", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },
   footerText: { color: '#6C757D', fontSize: 14 },
-  linkText: { color: '#0d6efd', fontWeight: '700', fontSize: 14 },
+  linkText: { color: '#007BFF', fontWeight: '700', fontSize: 14 },
 });

@@ -14,9 +14,15 @@ export default function Layout() {
             headerTitleStyle: { fontWeight: 'bold' },
         }}
       >
-        <Stack.Screen name="index" options={{ title: "Welcome" }} />
-        <Stack.Screen name="login" options={{ title: "Login" }} />
-        <Stack.Screen name="home" options={{ title: "Dashboard", headerLeft: () => null }} />
+      
+            <Stack.Screen name="index" options={{ title: "Welcome" }} />
+            <Stack.Screen name="login" options={{ title: "Login" }} />
+            
+            {/* Add this line: */}
+            <Stack.Screen name="register" options={{ title: "Create Account" }} />
+            
+            <Stack.Screen name="home" options={{ title: "Dashboard", headerLeft: () => null }} />
+    
       </Stack>
     </AuthProvider>
   );

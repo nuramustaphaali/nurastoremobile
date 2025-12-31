@@ -1,6 +1,7 @@
 import axios from 'axios';
-import { getToken } from '../utils/storage'; // <--- IMPORT HERE
+import { getToken } from '../utils/storage'; 
 
+// ✅ CORRECT LIVE URL (Based on your screenshot)
 const BASE_URL = 'https://store.swiftpos.ng/api';
 
 const api = axios.create({
@@ -12,9 +13,7 @@ const api = axios.create({
 
 api.interceptors.request.use(
   async (config) => {
-    // USE THE HELPER HERE
-    const token = await getToken('access_token'); 
-    
+    const token = await getToken('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -25,22 +24,17 @@ api.interceptors.request.use(
   }
 );
 
-
-// ============================================================
-// 2. AUTH ENDPOINTS
-// ============================================================
+// --- API FUNCTIONS ---
 export const loginUser = async (username, password) => {
-    // Returns { access, refresh }
+    // Note: Django requires a trailing slash "/"
     const response = await api.post('/token/', { username, password });
     return response.data;
 };
 
 export const registerUser = async (userData) => {
-    // userData = { username, email, password }
     const response = await api.post('/register/', userData);
     return response.data;
 };
-
 // ============================================================
 // 3. PRODUCT ENDPOINTS
 // ============================================================
