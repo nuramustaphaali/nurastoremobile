@@ -3,23 +3,24 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, 
   ActivityIndicator, KeyboardAvoidingView, Platform, SafeAreaView 
 } from 'react-native';
-import { router } from 'expo-router'; // <--- NEW IMPORT
+import { router } from 'expo-router'; 
+import { Ionicons } from '@expo/vector-icons'; // Import Icon
 import { AuthContext } from '../src/context/AuthContext';
 
 export default function LoginScreen() {
   const { login } = useContext(AuthContext);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPass, setShowPass] = useState(false); // Toggle State
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     setLoading(true);
     try {
       await login(username, password);
-      // Success! Replace the current screen so user can't go back to login
       router.replace('/home'); 
     } catch (e) {
-      alert('Login Failed. Please check credentials.');
+        // Error handling is inside AuthContext
     } finally {
       setLoading(false);
     }
@@ -27,10 +28,7 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardView}>
         <View style={styles.headerContainer}>
           <Text style={styles.title}>Welcome Back</Text>
           <Text style={styles.subtitle}>Sign in to your account</Text>
@@ -39,39 +37,41 @@ export default function LoginScreen() {
         <View style={styles.formContainer}>
           <View style={styles.inputWrapper}>
             <Text style={styles.label}>Username</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your username"
-              placeholderTextColor="#A0A0A0"
-              value={username}
-              onChangeText={setUsername}
-              autoCapitalize="none"
-            />
+            <View style={styles.inputContainer}>
+                <TextInput
+                style={styles.input}
+                placeholder="Enter your username"
+                placeholderTextColor="#A0A0A0"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                />
+            </View>
           </View>
 
           <View style={styles.inputWrapper}>
             <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your password"
-              placeholderTextColor="#A0A0A0"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
+            <View style={styles.inputContainer}>
+                <TextInput
+                style={styles.input}
+                placeholder="Enter your password"
+                placeholderTextColor="#A0A0A0"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPass} // Logic
+                />
+                <TouchableOpacity onPress={() => setShowPass(!showPass)} style={styles.eyeIcon}>
+                    <Ionicons name={showPass ? "eye-off" : "eye"} size={20} color="#6C757D" />
+                </TouchableOpacity>
+            </View>
           </View>
 
           <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
-            )}
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
           </TouchableOpacity>
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Don't have an account? </Text>
-            {/* THIS IS THE FIX: Link to the register file */}
             <TouchableOpacity onPress={() => router.push('/register')}>
               <Text style={styles.linkText}>Sign Up</Text>
             </TouchableOpacity>
@@ -95,10 +95,26 @@ const styles = StyleSheet.create({
   },
   inputWrapper: { marginBottom: 20 },
   label: { fontSize: 14, fontWeight: '600', color: '#343A40', marginBottom: 8 },
-  input: {
-    height: 50, backgroundColor: '#F1F3F5', borderRadius: 12,
-    paddingHorizontal: 15, fontSize: 16, color: '#333', borderWidth: 1, borderColor: 'transparent',
+  
+  // Updated Styles for Icon Support
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F3F5',
+    borderRadius: 12,
+    height: 50,
+    paddingHorizontal: 15,
   },
+  input: {
+    flex: 1,
+    height: '100%',
+    fontSize: 16,
+    color: '#333',
+  },
+  eyeIcon: {
+    padding: 5,
+  },
+
   button: {
     backgroundColor: '#007BFF', height: 50, borderRadius: 12,
     justifyContent: 'center', alignItems: 'center', marginTop: 10,

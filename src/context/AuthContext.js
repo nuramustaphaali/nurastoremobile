@@ -80,15 +80,16 @@ export const AuthProvider = ({ children }) => {
   // ============================================================
   // 3. REGISTER FUNCTION
   // ============================================================
-  const register = async (username, email, password) => {
+  const register = async (username, email, password, confirm_password) => {
     setIsLoading(true);
     try {
       await api.post('/register/', {
         username,
         email,
         password,
+        confirm_password, // <--- SENDING THIS NOW
       });
-      // Don't auto-login here, let them go back to login screen
+      // Success
     } catch (e) {
       if (e.response) {
         console.error("Registration Server Error:", e.response.data);
