@@ -4,8 +4,8 @@ import { Platform } from 'react-native';
 // 1. DETERMINE URL
 // Android Emulator uses 10.0.2.2. iOS uses localhost. Real device uses Laptop IP.
 const getBaseUrl = () => {
-    if (Platform.OS === 'android') return 'http://10.0.2.2:8000/api'; 
-    return 'http://127.0.0.1:8000/api'; // iOS Simulator
+    if (Platform.OS === 'android') return 'https://store.swiftpos.ng/api'; 
+    return 'https://store.swiftpos.ng/api'; // iOS Simulator
     // Note: If testing on real phone, replace with 'http://192.168.X.X:8000/api'
 };
 
