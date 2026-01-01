@@ -1,21 +1,28 @@
 import axios from 'axios';
 import { getToken } from '../utils/storage'; 
 
-// ✅ CORRECT LIVE URL (Based on your screenshot)
-const BASE_URL = 'https://store.swiftpos.ng/api';
+// ⚠️ CHANGE THIS TO YOUR ACTUAL LIVE URL
+const BASE_URL = 'https://store.swiftpos.ng/api'; 
 
 const api = axios.create({
   baseURL: BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000, // 10 seconds timeout
 });
 
 api.interceptors.request.use(
   async (config) => {
+    // 1. Grab token from storage
     const token = await getToken('access_token');
+    
+    // 2. If token exists, attach it to headers
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log("🔑 Attaching Token to request:", config.url);
+    } else {
+      console.log("⚠️ No Token found for request:", config.url);
     }
     return config;
   },
