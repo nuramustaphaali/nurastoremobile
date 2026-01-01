@@ -1,16 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { 
   View, Text, FlatList, Image, TouchableOpacity, StyleSheet, 
-  ActivityIndicator, SafeAreaView, Alert 
+  ActivityIndicator, SafeAreaView, Alert, Dimensions 
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import api from '../src/services/api';
+
+const { width } = Dimensions.get('window');
+const BASE_URL = 'https://store.swiftpos.ng'; // To fix relative image paths
 
 export default function CartScreen() {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [subtotal, setSubtotal] = useState(0);
+  const [cartTotal, setCartTotal] = useState(0);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -21,13 +26,15 @@ export default function CartScreen() {
   const fetchCart = async () => {
     try {
       const response = await api.get('/cart/');
-      // Handle array or object response
-      let items = Array.isArray(response.data) ? response.data : (response.data.items || []);
+      
+      // ✅ Correct Data Mapping based on your API JSON
+      const items = Array.isArray(response.data) ? response.data : (response.data.items || []);
       setCartItems(items);
       calculateTotal(items);
+
     } catch (error) {
       if (error.response && error.response.status === 404) {
-        setCartItems([]); // Empty cart is not an error
+        setCartItems([]);
       } else {
         console.log("Cart Error:", error);
       }
@@ -36,128 +43,195 @@ export default function CartScreen() {
     }
   };
 
-  // --- SMART HELPER TO FIND PRICE ---
-  const getItemPrice = (item) => {
-    // Check all possible places the price might be hiding
-    const rawPrice = item.price 
-                  || item.unit_price 
-                  || item.product?.price 
-                  || item.product_price 
-                  || 0;
-    return parseFloat(rawPrice); // Force it to be a number
-  };
-
   const calculateTotal = (items) => {
     const total = items.reduce((sum, item) => {
-        return sum + (getItemPrice(item) * (item.quantity || 1));
+        return sum + parseFloat(item.subtotal || 0);
     }, 0);
-    setSubtotal(total);
+    setCartTotal(total);
   };
 
   const removeItem = async (itemId) => {
-    Alert.alert("Remove Item", "Are you sure?", [
+    Alert.alert("Remove Item", "Remove this item from your cart?", [
         { text: "Cancel", style: "cancel" },
         { 
-          text: "Remove", style: 'destructive',
+          text: "Remove", 
+          style: 'destructive',
           onPress: async () => {
+            // Optimistic update
             const newItems = cartItems.filter(item => item.id !== itemId);
             setCartItems(newItems);
             calculateTotal(newItems);
-            try { await api.delete(`/cart/items/${itemId}/`); } catch (e) {}
+            try { await api.delete(`/cart/items/${itemId}/`); } catch (e) { fetchCart(); }
           }
         }
     ]);
   };
 
-  const renderItem = ({ item }) => {
-    const price = getItemPrice(item);
-    const totalItemPrice = price * item.quantity;
-    const name = item.product?.name || item.product_name || item.name || "Product";
-    const image = item.product?.image || item.image || null;
-
-    return (
-        <View style={styles.cartItem}>
-          <Image 
-              source={{ uri: image || 'https://via.placeholder.com/100' }} 
-              style={styles.itemImage} 
-          />
-          <View style={styles.itemDetails}>
-              <Text style={styles.itemTitle} numberOfLines={1}>{name}</Text>
-              <Text style={styles.itemPrice}>₦{price.toLocaleString()}</Text>
-              <Text style={styles.qtyLabel}>Qty: {item.quantity}</Text>
-          </View>
-          <View style={styles.rightActions}>
-              <Text style={styles.totalItemPrice}>₦{totalItemPrice.toLocaleString()}</Text>
-              <TouchableOpacity onPress={() => removeItem(item.id)} style={styles.deleteBtn}>
-                  <Ionicons name="trash-outline" size={20} color="#FF4757" />
-              </TouchableOpacity>
-          </View>
-        </View>
-    );
+  // ✅ Helper to fix image URLs
+  const getImageUrl = (path) => {
+      if (!path) return 'https://via.placeholder.com/150';
+      return path.startsWith('http') ? path : `${BASE_URL}${path}`;
   };
 
-  if (loading) return <ActivityIndicator size="large" color="#000" style={{marginTop: 50}} />;
+  const renderItem = ({ item }) => (
+    <View style={styles.card}>
+      <View style={styles.imageWrapper}>
+        <Image 
+          source={{ uri: getImageUrl(item.product_image) }} 
+          style={styles.image} 
+        />
+      </View>
+      
+      <View style={styles.details}>
+        <View style={styles.topRow}>
+            <Text style={styles.title} numberOfLines={2}>{item.product_name}</Text>
+            <TouchableOpacity onPress={() => removeItem(item.id)} style={styles.trashBtn}>
+                <Ionicons name="trash-outline" size={18} color="#EF4444" />
+            </TouchableOpacity>
+        </View>
+
+        <Text style={styles.unitPrice}>@{parseFloat(item.product_price).toLocaleString()}</Text>
+
+        <View style={styles.bottomRow}>
+            <View style={styles.qtyBadge}>
+                <Text style={styles.qtyText}>Qty: {item.quantity}</Text>
+            </View>
+            <Text style={styles.subtotal}>₦{parseFloat(item.subtotal).toLocaleString()}</Text>
+        </View>
+      </View>
+    </View>
+  );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}><Ionicons name="arrow-back" size={24} /></TouchableOpacity>
-        <Text style={styles.headerTitle}>My Cart ({cartItems.length})</Text>
-        <View style={{width: 24}} /> 
-      </View>
+    <View style={styles.container}>
+      <StatusBar style="light" />
 
-      {cartItems.length > 0 ? (
-        <>
-          <FlatList
-            data={cartItems}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={styles.listContent}
-          />
-          <View style={styles.footer}>
-            <View style={styles.summaryRow}>
-                <Text style={styles.totalLabel}>Subtotal:</Text>
-                <Text style={styles.totalValue}>₦{subtotal.toLocaleString()}</Text>
+      {/* --- GRADIENT HEADER --- */}
+      <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.header}>
+        <SafeAreaView>
+            <View style={styles.headerContent}>
+                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                    <Ionicons name="arrow-back" size={24} color="#fff" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Shopping Cart</Text>
+                <View style={{width: 40}} /> 
             </View>
-            <TouchableOpacity 
-                style={styles.checkoutBtn} 
-                onPress={() => router.push({ pathname: '/checkout', params: { subtotal } })}
-            >
-                <Text style={styles.checkoutText}>Proceed to Checkout</Text>
-                <Ionicons name="arrow-forward" size={20} color="#fff" style={{marginLeft: 5}} />
-            </TouchableOpacity>
-          </View>
-        </>
-      ) : (
-        <View style={styles.emptyContainer}>
-            <Ionicons name="cart-outline" size={80} color="#ccc" />
-            <Text style={styles.emptyText}>Cart is empty</Text>
-        </View>
-      )}
-    </SafeAreaView>
+            <View style={styles.headerSummary}>
+                <Text style={styles.headerLabel}>Total Items</Text>
+                <Text style={styles.headerCount}>{cartItems.length}</Text>
+            </View>
+        </SafeAreaView>
+      </LinearGradient>
+
+      {/* --- CONTENT --- */}
+      <View style={styles.body}>
+        {loading ? (
+            <ActivityIndicator size="large" color="#4F46E5" style={{marginTop: 50}} />
+        ) : cartItems.length > 0 ? (
+            <>
+                <FlatList
+                    data={cartItems}
+                    renderItem={renderItem}
+                    keyExtractor={(item) => item.id.toString()}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                />
+                
+                {/* --- FOOTER --- */}
+                <View style={styles.footer}>
+                    <View style={styles.totalRow}>
+                        <Text style={styles.totalLabel}>Subtotal</Text>
+                        <Text style={styles.totalAmount}>₦{cartTotal.toLocaleString()}</Text>
+                    </View>
+                    <TouchableOpacity 
+                        style={styles.checkoutBtn} 
+                        onPress={() => router.push({ pathname: '/checkout', params: { subtotal: cartTotal.toString() } })}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.checkoutText}>Proceed to Checkout</Text>
+                        <View style={styles.arrowCircle}>
+                            <Ionicons name="arrow-forward" size={16} color="#4F46E5" />
+                        </View>
+                    </TouchableOpacity>
+                </View>
+            </>
+        ) : (
+            <View style={styles.emptyContainer}>
+                <View style={styles.emptyIconBg}>
+                    <Ionicons name="cart-outline" size={50} color="#9CA3AF" />
+                </View>
+                <Text style={styles.emptyTitle}>Your cart is empty</Text>
+                <Text style={styles.emptySub}>Looks like you haven't added anything yet.</Text>
+                <TouchableOpacity style={styles.shopBtn} onPress={() => router.push('/home')}>
+                    <Text style={styles.shopBtnText}>Start Shopping</Text>
+                </TouchableOpacity>
+            </View>
+        )}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', padding: 20, backgroundColor: '#fff', alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold' },
-  listContent: { padding: 15 },
-  cartItem: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 12, padding: 10, marginBottom: 15, alignItems: 'center', shadowColor: "#000", shadowOpacity: 0.05, elevation: 2 },
-  itemImage: { width: 60, height: 60, borderRadius: 8, backgroundColor: '#eee' },
-  itemDetails: { flex: 1, marginLeft: 12 },
-  itemTitle: { fontSize: 14, fontWeight: '600', color: '#333' },
-  itemPrice: { fontSize: 13, color: '#666', marginTop: 2 },
-  qtyLabel: { fontSize: 12, fontWeight: 'bold', marginTop: 4 },
-  rightActions: { alignItems: 'flex-end', justifyContent: 'space-between', height: 60 },
-  totalItemPrice: { fontSize: 14, fontWeight: 'bold', color: '#2563EB' },
-  deleteBtn: { padding: 5 },
-  footer: { padding: 25, backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, elevation: 10 },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  totalLabel: { fontSize: 16, color: '#666' },
-  totalValue: { fontSize: 24, fontWeight: 'bold' },
-  checkoutBtn: { backgroundColor: '#111', height: 50, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  
+  // Header
+  header: { paddingHorizontal: 20, paddingTop: 50, paddingBottom: 25, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  headerContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
+  backBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12 },
+  headerSummary: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  headerLabel: { color: '#E0E7FF', fontSize: 14 },
+  headerCount: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
+
+  body: { flex: 1, marginTop: 10 },
+  listContent: { padding: 20, paddingBottom: 100 },
+
+  // Card
+  card: { 
+    flexDirection: 'row', backgroundColor: '#fff', borderRadius: 16, padding: 12, marginBottom: 15,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, elevation: 3
+  },
+  imageWrapper: { 
+    width: 90, height: 90, borderRadius: 12, backgroundColor: '#F3F4F6', overflow: 'hidden'
+  },
+  image: { width: '100%', height: '100%', resizeMode: 'cover' },
+  
+  details: { flex: 1, marginLeft: 15, justifyContent: 'space-between', paddingVertical: 2 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  title: { fontSize: 15, fontWeight: '600', color: '#1F2937', flex: 1, marginRight: 10 },
+  trashBtn: { padding: 5 },
+  
+  unitPrice: { fontSize: 12, color: '#9CA3AF', marginBottom: 5 },
+  
+  bottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  qtyBadge: { backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  qtyText: { fontSize: 12, fontWeight: 'bold', color: '#374151' },
+  subtotal: { fontSize: 16, fontWeight: 'bold', color: '#4F46E5' },
+
+  // Footer
+  footer: { 
+    position: 'absolute', bottom: 0, width: '100%', backgroundColor: '#fff', 
+    borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 25, paddingBottom: 35,
+    shadowColor: "#000", shadowOffset: { width: 0, height: -5 }, shadowOpacity: 0.1, elevation: 20
+  },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  totalLabel: { fontSize: 16, color: '#6B7280' },
+  totalAmount: { fontSize: 24, fontWeight: 'bold', color: '#111' },
+  
+  checkoutBtn: { 
+    backgroundColor: '#111', height: 56, borderRadius: 16, 
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, elevation: 5
+  },
   checkoutText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyText: { color: '#888', marginTop: 10 }
+  arrowCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' },
+
+  // Empty State
+  emptyContainer: { alignItems: 'center', marginTop: 80 },
+  emptyIconBg: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 20, fontWeight: 'bold', color: '#111', marginBottom: 5 },
+  emptySub: { fontSize: 14, color: '#9CA3AF', marginBottom: 30 },
+  shopBtn: { backgroundColor: '#4F46E5', paddingVertical: 12, paddingHorizontal: 30, borderRadius: 30 },
+  shopBtnText: { color: '#fff', fontWeight: 'bold' }
 });
