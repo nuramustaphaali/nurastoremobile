@@ -1,28 +1,26 @@
 import axios from 'axios';
-import { getToken } from '../utils/storage'; 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ⚠️ CHANGE THIS TO YOUR ACTUAL LIVE URL
-const BASE_URL = 'https://store.swiftpos.ng/api'; 
-
+// 1. Create the Axios Instance
 const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: 'https://store.swiftpos.ng/api', // Check this URL matches your backend
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 seconds timeout
 });
 
+// 2. Add the Token Interceptor
 api.interceptors.request.use(
   async (config) => {
-    // 1. Grab token from storage
-    const token = await getToken('access_token');
+    // Retrieve token from storage
+    const token = await AsyncStorage.getItem('userToken');
     
-    // 2. If token exists, attach it to headers
     if (token) {
+      // Attach it to the header
       config.headers.Authorization = `Bearer ${token}`;
-      console.log("🔑 Attaching Token to request:", config.url);
+      // console.log("🔑 Attaching Token to request:", config.url); // Uncomment to debug
     } else {
-      console.log("⚠️ No Token found for request:", config.url);
+      // console.log("⚠️ No Token found for request:", config.url);
     }
     return config;
   },
@@ -30,6 +28,21 @@ api.interceptors.request.use(
     return Promise.reject(error);
   }
 );
+
+// 3. Optional: Handle 401 (Logout) automatically
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response && error.response.status === 401) {
+      // Token expired or invalid
+      console.log("🔒 401 Unauthorized - Token might be invalid");
+      // You can ptionally clear storage here, but AuthContext usually handles the UI
+      // await AsyncStorage.removeItem('userToken');
+    }
+    return Promise.reject(error);
+  }
+);
+
 
 // --- API FUNCTIONS ---
 export const loginUser = async (username, password) => {

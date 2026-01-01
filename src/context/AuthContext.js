@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
 
@@ -9,21 +10,25 @@ export const AuthProvider = ({ children }) => {
   const [userToken, setUserToken] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
 
-  // 1. Check if user is logged in when app opens
+  // 1. Check Login Status on App Start
   const isLoggedIn = async () => {
     try {
+      setIsLoading(true);
       let token = await AsyncStorage.getItem('userToken');
-      let userInfo = await AsyncStorage.getItem('userInfo');
+      let user = await AsyncStorage.getItem('userInfo');
 
       if (token) {
         setUserToken(token);
-        setUserInfo(JSON.parse(userInfo));
+        if (user) {
+            setUserInfo(JSON.parse(user));
+        }
+        // Optional: Validate token with backend here
       }
     } catch (e) {
-      console.log(`Loggin Error ${e}`);
+      console.log(`Login Status Error: ${e}`);
+    } finally {
+      setIsLoading(false);
     }
-    // IMPORTANT: Only set loading to false AFTER checking
-    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -34,32 +39,77 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     setIsLoading(true);
     try {
+        // A. Get Token
         const response = await api.post('/token/', { username, password });
         
-        const token = response.data.access;
-        const decodedUser = { username }; // You might want to decode token or fetch profile here
+        // Ensure we handle different response structures
+        const token = response.data.access || response.data.token; 
         
+        if (!token) {
+            throw new Error("Invalid response from server (No token).");
+        }
+
         setUserToken(token);
-        setUserInfo(decodedUser);
-        
         await AsyncStorage.setItem('userToken', token);
-        await AsyncStorage.setItem('userInfo', JSON.stringify(decodedUser));
+
+        // B. Fetch User Details (So Profile page works)
+        // We temporarily attach the header manually since interceptors might not have picked it up yet
+        try {
+            const userResponse = await api.get('/me/', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const userData = userResponse.data;
+            setUserInfo(userData);
+            await AsyncStorage.setItem('userInfo', JSON.stringify(userData));
+        } catch (profileError) {
+            console.log("Could not fetch profile:", profileError);
+            // Fallback: Save basic username if profile fetch fails
+            const basicUser = { username };
+            setUserInfo(basicUser);
+            await AsyncStorage.setItem('userInfo', JSON.stringify(basicUser));
+        }
+
     } catch (error) {
-        console.log("Login Error", error);
-        throw error; // Let the screen handle the alert
+        console.log("Login Error:", error);
+        const msg = error.response?.data?.detail || "Invalid credentials";
+        Alert.alert("Login Failed", msg);
+        throw error; // Propagate error so LoginScreen can stop spinner
     } finally {
         setIsLoading(false);
     }
   };
 
   // 3. Register Function
-  const register = async (username, email, password) => {
+  const register = async (username, email, password, confirmPassword) => {
     setIsLoading(true);
     try {
-        await api.post('/register/', { username, email, password });
-        // Don't auto-login, let them login manually or navigate to login
+        const payload = {
+            username, 
+            email, 
+            password,
+            password_confirm: confirmPassword // Backend usually expects this match
+        };
+        
+        await api.post('/register/', payload);
+        
+        // We don't auto-login here to encourage email verification or manual login
+        return true; 
+
     } catch (error) {
-        console.log("Register Error", error);
+        console.log("Register Error:", error.response?.data);
+        
+        // Extract useful error message from Django array response
+        let msg = "Registration failed.";
+        if (error.response?.data) {
+            const data = error.response.data;
+            // Check if username/email specific errors exist
+            if (data.username) msg = data.username[0];
+            else if (data.email) msg = data.email[0];
+            else if (data.password) msg = data.password[0];
+            else if (data.detail) msg = data.detail;
+        }
+        
+        Alert.alert("Registration Failed", msg);
         throw error;
     } finally {
         setIsLoading(false);
@@ -69,15 +119,29 @@ export const AuthProvider = ({ children }) => {
   // 4. Logout Function
   const logout = async () => {
     setIsLoading(true);
-    setUserToken(null);
-    setUserInfo(null);
-    await AsyncStorage.removeItem('userToken');
-    await AsyncStorage.removeItem('userInfo');
-    setIsLoading(false);
+    try {
+        // Optional: Call backend logout if needed
+        // await api.post('/logout/'); 
+    } catch (e) {
+        console.log("Logout error", e);
+    } finally {
+        setUserToken(null);
+        setUserInfo(null);
+        await AsyncStorage.removeItem('userToken');
+        await AsyncStorage.removeItem('userInfo');
+        setIsLoading(false);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ login, logout, register, isLoading, userToken, userInfo }}>
+    <AuthContext.Provider value={{ 
+        login, 
+        logout, 
+        register, 
+        isLoading, 
+        userToken, 
+        userInfo 
+    }}>
       {children}
     </AuthContext.Provider>
   );
